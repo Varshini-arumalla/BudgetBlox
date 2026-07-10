@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { db } from './firebase';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -11,11 +11,11 @@ export default function Dashboard({ user, onLogout }) {
   const [monthlyBudget, setMonthlyBudget] = useState(0);
   const [budgetInput, setBudgetInput] = useState("");
   const [hasBudget, setHasBudget] = useState(false);
-
   const [expenses, setExpenses] = useState([]);
-
   const [savingsGoal, setSavingsGoal] = useState("");
   const [goalAmount, setGoalAmount] = useState("");
+  const [targetDate, setTargetDate] = useState("");
+  const [budgetAdjustment, setBudgetAdjustment] = useState("");
   const [hasGoal, setHasGoal] = useState(false);
 
   const [streak, setStreak] = useState(0);
@@ -48,9 +48,10 @@ export default function Dashboard({ user, onLogout }) {
         }
 
         if (data.savingsGoal) {
-          setSavingsGoal(data.savingsGoal.name);
-          setGoalAmount(data.savingsGoal.amount);
-          setHasGoal(true);
+            setSavingsGoal(data.savingsGoal.name);
+            setGoalAmount(data.savingsGoal.amount);
+            setTargetDate(data.savingsGoal.targetDate || "");
+            setHasGoal(true);
         } else {
           setHasGoal(false);
         }
@@ -86,7 +87,47 @@ export default function Dashboard({ user, onLogout }) {
     monthlyBudget - totalSpent,
     [monthlyBudget, totalSpent]);
 
+   const totalSavings = useMemo(() => {
+  return Math.max(balance, 0);
+  }, [balance]);
 
+   const goalInsights = useMemo(() => {
+  if (!hasGoal || !targetDate) return null;
+
+  const now = new Date();
+  const goalDate = new Date(targetDate + "-01");
+
+  let monthsRemaining =
+    (goalDate.getFullYear() - now.getFullYear()) * 12 +
+    (goalDate.getMonth() - now.getMonth());
+
+  monthsRemaining = Math.max(monthsRemaining, 1);
+
+  const remainingAmount =
+    Math.max(Number(goalAmount) - totalSavings, 0);
+
+  const monthlyNeeded =
+    Math.ceil(remainingAmount / monthsRemaining);
+
+    const monthlySavingCapacity = Math.max(balance, 0);
+    
+  const realisticMonths =
+  monthlySavingCapacity > 0
+    ? Math.ceil(remainingAmount / monthlySavingCapacity)
+    : Infinity;
+
+  const goalPossible =
+    monthlyBudget >= monthlyNeeded;
+
+  return {
+    monthsRemaining,
+    remainingAmount,
+    monthlyNeeded,
+    realisticMonths,
+    goalPossible
+  };
+    }, [hasGoal,targetDate,goalAmount,totalSavings,monthlyBudget]);
+  
   const handleSaveBudget = () => {
     if (!budgetInput || isNaN(budgetInput) || Number(budgetInput) <= 0) {
       alert("Please enter a valid budget amount!");
@@ -97,14 +138,51 @@ export default function Dashboard({ user, onLogout }) {
     setHasBudget(true);
     saveToStorage({ monthlyBudget: amt });
   };
+ 
+  const handleAddBudget = async () => {
+  const amount = Number(budgetAdjustment);
+  if (!amount || amount <= 0) {
+     alert("Enter a valid amount.");
+    return;
+  }
+  const newBudget = monthlyBudget + amount;
+  setMonthlyBudget(newBudget);
+  setBudgetAdjustment("");
+  await saveToStorage({
+    monthlyBudget: newBudget
+  });
+};
+
+const handleDeductBudget = async () => {
+  const amount = Number(budgetAdjustment);
+  if (!amount || amount <= 0) {    
+     alert("Enter a valid amount.");
+     return;
+  }
+  const newBudget = Math.max(0, monthlyBudget - amount);
+  setMonthlyBudget(newBudget);
+  setBudgetAdjustment("");
+  await saveToStorage({
+    monthlyBudget: newBudget
+  });
+};
 
   const handleSetGoal = () => {
     if (!savingsGoal.trim() || !goalAmount || isNaN(goalAmount) || Number(goalAmount) <= 0) {
       alert("Please enter valid goal details!");
       return;
     }
+    if (!targetDate) {
+      alert("Please select a target month.");
+      return;
+    }
     setHasGoal(true);
-    saveToStorage({ savingsGoal: { name: savingsGoal.trim(), amount: goalAmount } });
+     saveToStorage({
+    savingsGoal: {
+    name: savingsGoal.trim(),
+    amount: Number(goalAmount),
+    targetDate
+  }});
   };
 
   const handleAddExpense = () => {
@@ -165,6 +243,7 @@ export default function Dashboard({ user, onLogout }) {
           monthlyBudget: 0,
           savingsGoal: null,
           streak: 0,
+          totalSavings: 0,
           lastExpenseDate: "",
           expenses: []
         });
@@ -173,6 +252,7 @@ export default function Dashboard({ user, onLogout }) {
         setBudgetInput("");
         setExpenses([]);
         setSavingsGoal("");
+        setTargetDate("");
         setGoalAmount("");
         setHasGoal(false);
         setStreak(0);
@@ -225,14 +305,22 @@ export default function Dashboard({ user, onLogout }) {
     if (highestCat) insights.push(`Highest spending category: ${highestCat} (₹${max})`);
     insights.push(`Total spent this week: ₹${thisWeekSpent}`);
 
-    if (totalSpent > monthlyBudget) {
-      insights.push(`⚠️ You have exceeded your budget by ₹${totalSpent - monthlyBudget}!`);
-    } else if (totalSpent > monthlyBudget * 0.8) {
-      insights.push(`⚠️ Nearing budget limit (₹${monthlyBudget - totalSpent} left).`);
-    } else {
-      insights.push(`👍 You are within budget.`);
-    }
-    return insights;
+   if (hasGoal && goalInsights) {
+  if (!goalInsights.goalPossible) {
+    insights.push(
+      `⚠️ Your goal requires ₹${goalInsights.monthlyNeeded}/month but your budget is only ₹${monthlyBudget}.`
+    );
+
+    insights.push(
+      `📅 At your current budget, you'll need about ${goalInsights.realisticMonths} months.`
+    );
+  } else {
+    insights.push(
+      `🎯 Goal on track. Save ₹${goalInsights.monthlyNeeded}/month.`
+    );
+  }
+}
+   return insights;
   };
 
   const filteredTransactions = currentMonthExpenses.filter(exp => {
@@ -240,6 +328,25 @@ export default function Dashboard({ user, onLogout }) {
     const matchesSearch = exp.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
+
+  const badges = [];
+
+if (hasGoal) badges.push("🎯 Goal Setter");
+
+if (hasGoal && totalSavings >= Number(goalAmount) * 0.25)
+  badges.push("🥉 25% Saved");
+
+if (hasGoal && totalSavings >= Number(goalAmount) * 0.5)
+  badges.push("🥈 Halfway There");
+
+if (hasGoal && totalSavings >= Number(goalAmount))
+  badges.push("🏆 Goal Achieved");
+
+if (streak >= 7)
+  badges.push("🔥 7 Day Streak");
+
+if (monthlyBudget > 0 && totalSpent <= monthlyBudget * 0.8)
+  badges.push("💰 Budget Master");
 
   return (
     <div className="dashboard-container">
@@ -250,8 +357,15 @@ export default function Dashboard({ user, onLogout }) {
         <div className="dashboard-subheader">{currentMonth}</div>
 
         <div className="streak-container">
-          <div className="streak-badge">🔥 {streak} Day Streak</div>
-        </div>
+          <div className="streak-badge">
+            🔥 {streak} Day Streak
+          </div>
+       {badges.map((badge, index) => (
+        <div key={index} className="streak-badge">
+         {badge}
+       </div>
+         ))}
+      </div>
       </div>
 
       {!hasBudget && (
@@ -288,8 +402,9 @@ export default function Dashboard({ user, onLogout }) {
                 ₹{balance.toLocaleString()}
               </div>
             </div>
-          </div>
 
+          </div>
+       
           <div className="progress-bar-container">
             <div className="progress-bar-header">
               <span>Budget Usage</span>
@@ -299,15 +414,31 @@ export default function Dashboard({ user, onLogout }) {
               <div
                 className="progress-fill"
                 style={{
-                  width: `${Math.min(100, (totalSpent / monthlyBudget) * 100)}%`,
+                  width: `${monthlyBudget>0 ? Math.min(100, (totalSpent / monthlyBudget) * 100) : 0 }%`,
                   backgroundColor: totalSpent > monthlyBudget ? '#ff6b6b' : (totalSpent > monthlyBudget * 0.8 ? '#ffa726' : '#4facfe')
                 }}
               />
             </div>
+            <input type="number"  className="input-field"  placeholder="Adjust Budget"
+                     value={budgetAdjustment}
+                    onChange={(e) => setBudgetAdjustment(e.target.value)}/>
+              <div style={{ display: "flex", gap: "10px" }}>
+             <button className="primary-button" onClick={handleAddBudget}>+ Add Money </button>
+             <button className="primary-button btn-secondary" onClick={handleDeductBudget} > - Deduct Money </button>
+            </div>
           </div>
         </div>
       )}
+       <div className="card">
+  <h2 className="card-title">Current Savings</h2>
 
+  <div className="overview-item">
+    <div className="overview-label">Total Savings</div>
+    <div className="overview-amount text-success">
+      ₹{totalSavings.toLocaleString()}
+    </div>
+    </div>
+      </div>
       <div className="card">
         <h2 className="card-title">Insights</h2>
         <ul className="insights-list">
@@ -458,6 +589,12 @@ export default function Dashboard({ user, onLogout }) {
               value={goalAmount}
               onChange={(e) => setGoalAmount(e.target.value)}
             />
+            <input
+             type="month"
+             className="input-field"
+             value={targetDate}
+             onChange={(e) => setTargetDate(e.target.value)}
+            />
             <button className="primary-button" onClick={handleSetGoal}>
               Set Savings Goal
             </button>
@@ -465,12 +602,35 @@ export default function Dashboard({ user, onLogout }) {
         ) : (
           <>
             <span className="goal-text">Target: {savingsGoal} - ₹{Number(goalAmount).toLocaleString()}</span>
-            <span className="suggestion-text">
-              Keep your balance above ₹{goalAmount} to reach this!
-            </span>
-            <button className="primary-button btn-secondary" onClick={() => setHasGoal(false)}>
-              Change Goal
-            </button>
+            <>
+            {goalInsights && (
+          <span className="suggestion-text">
+          You need ₹{goalInsights.remainingAmount} more to reach your goal.
+          </span>
+          )}
+           {goalInsights && (
+           <div style={{ marginTop: "10px" }}>
+           <p>Months Remaining: {goalInsights.monthsRemaining}</p>
+           <p>Amount Remaining: ₹{goalInsights.remainingAmount}</p>
+           <p>Save ₹{goalInsights.monthlyNeeded}/month</p>
+           {!goalInsights.goalPossible && (
+             <div className="warning-box">
+            ⚠️ Based on your current budget, this goal is not achievable by the selected date.
+            <br />
+             Estimated time required: {goalInsights.realisticMonths} months.
+            </div>
+            )}
+         </div>
+  )}
+</>
+           <button className="primary-button btn-secondary" onClick={async () => {
+            setHasGoal(false);
+            await saveToStorage({
+          savingsGoal: null
+           });
+         }}
+            > Change Goal
+          </button>
           </>
         )}
       </div>

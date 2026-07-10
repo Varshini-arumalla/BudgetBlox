@@ -1,4 +1,3 @@
-/* Base resets mimicking react-native defaults */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -65,3 +64,6 @@ a {
 .flex-1 {
   flex: 1;
 }
+
+
+is there an error here
