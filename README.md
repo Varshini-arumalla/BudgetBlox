@@ -1,47 +1,52 @@
-# BudgetBlox (React Web)
+# BudgetBlox 
 
-A personal finance tracker crafted to help students manage their budgets effectively, monitor their expenses dynamically, and achieve their savings goals.
+BudgetBlox is a personal finance management application that helps users track expenses, manage monthly budgets, set savings goals, and gain insights into their spending habits through interactive visualizations.
 
-## Migration Details
-This project was migrated from a React Native (Expo) architecture to standard React Web using **Vite**. 
-**Firebase** has been completely extracted and replaced with browser `localStorage` to handle mock authentication and rapid local data persistence.
+## Live Demo
+https://budget-blox-five.vercel.app/
 
-## Features Added
-1. **Transactions List** 
-   - A dedicated section showcasing all recent expenses.
-   - Includes real-time **Search** capability by expense name.
-   - Includes a **Category Filter** dropdown.
-2. **Role-Based UI**
-   - Toggle behavior between Admin and Viewer roles (via the dropdown at the top).
-   - **Viewer:** Cannot view or use the Add Expense form or the Clear All Data buttons.
-   - **Admin:** Has unrestricted access to append records and wipe data.
-3. **Smart Insights Section**
-   - A newly added card calculating:
-     - The highest spending category.
-     - Total expenditures recorded exactly on the current week.
-     - Notification if you are running within your budget or have exceeded it.
-4. **Time-Based Visualization**
-   - Integrated a new **Line Chart** depicting your Weekly Spending Trends.
-   - Powered by `recharts`.
-   - Also retained the Pie Chart for categorical spending splits.
+## Repository
+https://github.com/Varshini-arumalla/BudgetBlox
 
-## How to Run
-
-1. Open your terminal in the root directory (`BudgetBlox`).
-2. Run `npm install` (or `npm.cmd install` on Windows if standard npm blocks scripts).
-3. Run `npm run dev` to start the local development server.
-4. Visit the provided localhost URL in your browser.
+## Features
+- Secure user authentication
+- Expense tracking and categorization
+- Monthly budget management
+- Savings goal tracking
+- Real-time data synchronization
+- Spending analytics and visual dashboards
 
 ## Tech Stack
-- Frontend: React 18, Vite
-- Charts: Recharts
-- Styling: Plain CSS
-- Database/Auth: Browser API `localStorage`
+- React.js
+- Firebase Authentication
+- Cloud Firestore
+- CSS
+- Recharts
 
-## Future Enhancements
-- Expand to a full backend with Node/Express and MongoDB.
-- Add receipt image uploading.
-- Implement an API-based insights generation using an LLM.
+## Installation
 
----
-*Created by [Your Name] for students trying to budget safely.*
+### Clone the repository
+```bash
+git clone https://github.com/Varshini-arumalla/BudgetBlox.git
+```
+
+### Install dependencies
+```bash
+npm install
+```
+
+### Run the application
+```bash
+npm run dev
+```
+
+## Future Improvements
+- Recurring expense management
+- Budget alerts and notifications
+- Export reports to PDF/CSV
+- AI-powered spending recommendations
+
+## Authors
+Varshini Arumalla
+Molabanti Venkata Naga Rakshitha
+Krovvidi Meenakshi
